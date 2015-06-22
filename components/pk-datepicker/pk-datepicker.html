@@ -1,0 +1,412 @@
+<!--
+@license
+Copyright (c) 2015 Peter Kaske <p.kaske@gmail.com>. All rights reserved.
+This code may only be used under the MIT license found at http://opensource.org/licenses/MIT.
+Or see the LICENSE file that comes with this code.
+-->
+<link rel="import" href="../polymer/polymer.html">
+<link rel="import" href="../fa-awesome/fa-awesome.html">
+<link rel="import" href="../iron-flex-layout/iron-flex-layout.html">
+
+<!--
+`pk-datepicker` show a simple calendar and let's you pick a date.
+
+Example:
+
+    <pk-datepicker></pk-datepicker>
+
+@group GUI Elements
+@element pk-timepicker
+@demo demo/index.html
+-->
+<dom-module id="pk-datepicker">
+    <style>
+        :host {
+            display: block;
+            min-width: 320px;
+        }
+
+        [header] {
+            height: 40px;
+            line-height: 40px;
+
+            -webkit-touch-callout: none;
+            -webkit-user-select: none;
+            -khtml-user-select: none;
+            -moz-user-select: none;
+            -ms-user-select: none;
+            user-select: none;
+
+            @apply(--layout-horizontal);
+            @apply(--layout-justified);
+            @apply(--pk-datepicker-header-theme);
+        }
+
+        [header] > div {
+            @apply(--layout-horizontal);
+            @apply(--layout-justified);
+            @apply(--layout-center);
+            @apply(--pk-datepicker-header-parts-theme);
+        }
+
+        [header] > div.month-display,
+        [header] > div.year-display {
+            width: 40%;
+            @apply(--pk-datepicker-header-display-theme);
+        }
+
+        [header] fa-awesome:hover {
+            cursor: pointer;
+            color: #BC5005;
+            @apply(--pk-datepicker-header-icon-hover-theme);
+        }
+
+        [header] .go-today {
+            padding-left: 5px;
+            cursor: pointer;
+            @apply(--pk-datepicker-header-today-theme);
+        }
+
+        [header] .go-selected {
+            cursor: pointer;
+            @apply(--pk-datepicker-header-selected-theme);
+        }
+
+        table {
+            width: 100%;
+        }
+
+        table td {
+            line-height: 25px;
+            text-align: center;
+            padding: 2px;
+            @apply(--pk-datepicker-cell-theme);
+        }
+
+        td > div {
+            display: inline-block;
+            margin: auto;
+            width: 30px;
+            height: 30px;
+            line-height: 30px;
+            @apply(--pk-datepicker-number-theme);
+        }
+
+        td > div:hover {
+            background-color: #FFD67D;
+            border-radius: 50%;
+            cursor: pointer;
+            @apply(--pk-datepicker-number-hover-theme);
+        }
+
+        td > div.today {
+            border-radius: 15px;
+            cursor: pointer;
+            background-color: #BC5005;
+            color: #ffffff;
+            @apply(--pk-datepicker-today-theme);
+        }
+
+        td > div.selected {
+            border-radius: 15px;
+            cursor: pointer;
+            background-color: #FFD67D;
+            color: #ffffff;
+            @apply(--pk-datepicker-selected-theme);
+        }
+
+    </style>
+    <template>
+        <div header>
+            <div class="month-display">
+                <fa-awesome on-click="_prevMonthHandler" icon="chevron-left"></fa-awesome>
+                <span id="currentMonth">{{currentMonth}}</span>
+                <fa-awesome on-click="_nextMonthHandler" icon="chevron-right"></fa-awesome>
+            </div>
+            <div class="year-display">
+                <fa-awesome on-click="_prevYearHandler" icon="chevron-left"></fa-awesome>
+                <span id="currentYear">{{date.year}}</span>
+                <fa-awesome on-click="_nextYearHandler" icon="chevron-right"></fa-awesome>
+            </div>
+            <div>
+                <fa-awesome on-click="_goSelectedHandler" class="go-selected" icon="dot-circle-o"></fa-awesome>
+                <fa-awesome on-click="_goTodayHandler" class="go-today" icon="calendar"></fa-awesome>
+            </div>
+        </div>
+        <div id="calendar" cellpadding="0" cellspacing="0"></div>
+    </template>
+</dom-module>
+
+<script>
+    Polymer({
+        is: 'pk-datepicker',
+
+        properties: {
+
+            /**
+             * This property can be used to localize the elements day labels.
+             */
+            dayLabels: {
+                type: Array,
+                value: ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+            },
+
+            /**
+             * This property can be used to localize the elements month labels.
+             */
+            monthLabels: {
+                type: Array,
+                value: ['January', 'February', 'March', 'April',
+                    'May', 'June', 'July', 'August', 'September',
+                    'October', 'November', 'December']
+            },
+
+            /**
+             * The currently selected date.
+             * Object => {{year: String, month: String, day: String}}
+             */
+            date: {
+                type: Object,
+                value: function() {
+                    var d = new Date();
+                    return {
+                        year: d.getFullYear(),
+                        month: d.getMonth() + 1,
+                        day: null
+                    }
+                },
+                observer: '_dateChanged'
+            }
+        },
+
+        // Element Lifecycle
+
+        attached: function() {
+            this.$.calendar.addEventListener('click', this._selectionHandler.bind(this));
+        },
+
+        detached: function() {
+            this.$.calendar.removeEventListener('click', this._selectionHandler.bind(this));
+        },
+
+        // Element Behavior
+
+        /**
+         * The `date-selected` event is fired whenever a date was selected.
+         * The month property is normalized (January is month 1, not month 0).
+         *
+         * @event date-selected
+         * @detail {{year: String, month: String, day: String}}
+         */
+
+        _showDate: {
+            year: 0,
+            month: 1,
+            day: 1
+        },
+
+        /**
+         * Fires the `date-selected` event if some date was selected.
+         */
+        _selectionHandler: function(e) {
+            if (e.target && e.target.nodeName == 'DIV' && e.target.classList.contains('day')) {
+                var oldSelection = Polymer.dom(this.$.calendar).querySelector('.selected');
+                if (oldSelection) {
+                    oldSelection.classList.remove('selected');
+                }
+
+                e.target.classList.add('selected');
+
+                this.date = {
+                    year: this._showDate.year,
+                    month: this._showDate.month + 1,
+                    day: parseInt(e.target.textContent)
+                };
+
+                this.fire('date-selected', { year: this.date.year, month: this.date.month + 1, day: parseInt(e.target.textContent) });
+            }
+        },
+
+        /**
+         * Show the next month.
+         */
+        _nextMonthHandler: function() {
+            this._showDate.month = this._showDate.month == 11 ? 0 : this._showDate.month + 1;
+            this._showDate.year = this._showDate.month <= 0 ? this._showDate.year + 1 : this._showDate.year;
+
+            this.notifyPath('date.year', this._showDate.year);
+
+            this.currentMonth = this.monthLabels[this._showDate.month];
+            this._genTable(this._showDate.year, this._showDate.month);
+        },
+
+        /**
+         * Show the previous month.
+         */
+        _prevMonthHandler: function() {
+            this._showDate.month = this._showDate.month <= 0 ? 11 : this._showDate.month - 1;
+            this._showDate.year = this._showDate.month == 11 ? this._showDate.year - 1 : this._showDate.year;
+
+            this.notifyPath('date.year', this._showDate.year);
+
+            this.currentMonth = this.monthLabels[this._showDate.month];
+            this._genTable(this._showDate.year, this._showDate.month);
+        },
+
+
+        /**
+         * Show the next year.
+         */
+        _nextYearHandler: function() {
+            this._showDate.year += 1;
+            this.notifyPath('date.year', this._showDate.year);
+            this._genTable(this._showDate.year, this._showDate.month);
+        },
+
+        /**
+         * Show the previous year.
+         */
+        _prevYearHandler: function() {
+            this._showDate.year -= 1;
+            this.notifyPath('date.year', this._showDate.year);
+            this._genTable(this._showDate.year, this._showDate.month);
+        },
+
+        /**
+         * Switch to current month.
+         */
+        _goTodayHandler: function() {
+            var date = new Date();
+            this._showDate.month = date.getMonth();
+            this._showDate.year = date.getFullYear();
+
+            this.notifyPath('date.year', this._showDate.year);
+
+            this.currentMonth = this.monthLabels[this._showDate.month];
+            this._genTable(this._showDate.year, this._showDate.month);
+        },
+
+        /**
+         * Switch view to month of selected day.
+         */
+        _goSelectedHandler: function() {
+            this._showDate.month = this.date.month;
+            this._showDate.year = this.date.year;
+
+            this.notifyPath('date.year', this._showDate.year);
+
+            this.currentMonth = this.monthLabels[this._showDate.month];
+            this._genTable(this._showDate.year, this._showDate.month);
+        },
+
+        /**
+         * Switch to the right calendar page, based on the set date.
+         * @param {Object} newDate
+         */
+        _dateChanged: function(newDate) {
+            var date = new Date();
+            var month = parseInt(newDate.month) - 1 || 0;
+            var year = parseInt(newDate.year) || date.getFullYear();
+            var day = parseInt(newDate.day) || 1;
+
+            // Test if the date exists.
+            var testDate = new Date(year, month, day);
+            if (day != testDate.getDate()) {
+                day = testDate.getDate();
+            }
+
+            if (month != testDate.getMonth()) {
+                month = testDate.getMonth();
+            }
+
+            if (year != testDate.getFullYear()) {
+                year = testDate.getFullYear();
+            }
+
+            this.date.month = month;
+            this.date.year = year;
+            this.date.day = this.date.day != null ? day : null;
+
+            this._showDate.month = month;
+            this._showDate.year = year;
+
+            this.currentMonth = this.monthLabels[this._showDate.month];
+            this._genTable(this._showDate.year, this._showDate.month);
+        },
+
+        /**
+         * Renders the calendar page for the selected date.
+         * @param year
+         * @param month
+         */
+        _genTable: function(year, month) {
+            var table = document.createElement('table');
+            var daysInMonth = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+            var lDays = this.dayLabels;
+            var calEl = Polymer.dom(this.$.calendar);
+            var firstDay = new Date(year, month, 1);
+            var startingDay = firstDay.getDay();
+
+            if (startingDay == 0) startingDay = 7;
+            var monthLength = daysInMonth[month];
+
+            var today = new Date();
+            var thisDay = today.getDate();
+            var thisMonth = today.getMonth();
+            var thisYear = today.getFullYear();
+
+            // Handle leap year.
+            if (month == 1) {
+                if ((year % 4 == 0 && year % 100 != 0) || year % 400 == 0){
+                    monthLength = 29;
+                }
+            }
+
+            var html = '<thead><tr>';
+            for (var i = 1; i <= 7; i++ ){
+                html += '<th>';
+                html += lDays[i < 7 ? i : 0];
+                html += '</th>';
+            }
+            html += '</tr></thead><tbody><tr>';
+
+            var day = 1;
+            // Loop through weeks.
+            for (var i = 0; i < 9; i++) {
+                // Loop through days.
+                for (var j = 1; j <= 7; j++) {
+                    var i2 = i < 7 ? i : 0;
+                    if (day <= monthLength && (i2 > 0 || j >= startingDay)) {
+                        var classes = [];
+
+                        if (day == this.date.day && month == this.date.month && year == this.date.year) {
+                            classes.push('selected');
+                        }
+
+                        if (day == thisDay && thisMonth == month && thisYear == year) {
+                            classes.push('today');
+                        }
+
+                        html += '<td><div class="day ' + classes.join(' ') + '">' + day + '</div>';
+                        day++;
+                    } else {
+                        html += '<td class="disabled">';
+                    }
+                    html += '</td>';
+                }
+                // stop making rows if we've run out of days
+                if (day > monthLength) {
+                    break;
+                } else {
+                    html += '</tr><tr>';
+                }
+            }
+
+            html += '</tr></tbody>';
+
+            table.innerHTML = html;
+            this.$.calendar.innerHTML = '';
+            calEl.appendChild(table);
+        }
+    });
+</script>
