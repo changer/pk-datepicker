@@ -5,8 +5,8 @@ This code may only be used under the MIT license found at http://opensource.org/
 Or see the LICENSE file that comes with this code.
 -->
 <link rel="import" href="../polymer/polymer.html">
-<link rel="import" href="../fa-awesome/fa-awesome.html">
 <link rel="import" href="../iron-flex-layout/iron-flex-layout.html">
+<link rel="import" href="../iron-icons/iron-icons.html">
 
 <!--
 `pk-datepicker` show a simple calendar and let's you pick a date.
@@ -55,7 +55,7 @@ Example:
             @apply(--pk-datepicker-header-display-theme);
         }
 
-        [header] fa-awesome:hover {
+        [header] iron-icon:hover {
             cursor: pointer;
             color: #BC5005;
             @apply(--pk-datepicker-header-icon-hover-theme);
@@ -119,18 +119,18 @@ Example:
     <template>
         <div header>
             <div class="month-display">
-                <fa-awesome on-click="_prevMonthHandler" icon="chevron-left"></fa-awesome>
+                <iron-icon icon="chevron-left" on-click="_prevMonthHandler"></iron-icon>
                 <span id="currentMonth">{{currentMonth}}</span>
-                <fa-awesome on-click="_nextMonthHandler" icon="chevron-right"></fa-awesome>
+                <iron-icon icon="chevron-right" on-click="_nextMonthHandler"></iron-icon>
             </div>
             <div class="year-display">
-                <fa-awesome on-click="_prevYearHandler" icon="chevron-left"></fa-awesome>
+                <iron-icon icon="chevron-left" on-click="_prevYearHandler"></iron-icon>
                 <span id="currentYear">{{date.year}}</span>
-                <fa-awesome on-click="_nextYearHandler" icon="chevron-right"></fa-awesome>
+                <iron-icon icon="chevron-right" on-click="_nextYearHandler"></iron-icon>
             </div>
             <div>
-                <fa-awesome on-click="_goSelectedHandler" class="go-selected" icon="dot-circle-o"></fa-awesome>
-                <fa-awesome on-click="_goTodayHandler" class="go-today" icon="calendar"></fa-awesome>
+                <iron-icon icon="settings-backup-restore" on-click="_goSelectedHandler" class="go-selected"></iron-icon>
+                <iron-icon icon="today" on-click="_goTodayHandler" class="go-today"></iron-icon>
             </div>
         </div>
         <div id="calendar" cellpadding="0" cellspacing="0"></div>
